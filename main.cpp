@@ -180,15 +180,20 @@ void Render()
 	glClear( GL_COLOR_BUFFER_BIT );
 	
 	static const GLfloat shipVerts[] = {
-		-0.5f, -0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f,
-		0.0f,  0.5f, 0.0f,
+		0.0f, 1.0f, 0.0f,
+		-0.3f, 0.0f, 0.0f,
+		-0.3f, 0.0f, 0.0f,
+		0.0f,  0.2f, 0.0f,
+		0.0f,  0.2f, 0.0f,
+		0.3f,  0.0f, 0.0f,
+		0.3f,  0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,
 	};
 	
 	glBufferData( GL_ARRAY_BUFFER, sizeof( shipVerts ), shipVerts, GL_STREAM_DRAW );
 	
 	// Draw the triangle !
-	glDrawArrays( GL_TRIANGLES, 0, 3 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
+	glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
 }
 
 //-----------
