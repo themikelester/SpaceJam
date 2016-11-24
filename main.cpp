@@ -81,8 +81,7 @@ int main( int argc, char* argv[] )
 		printf( "specify server/client\n" );
 		return -1;
 	}
-
-	if ( strcmp( argv[ 1 ], "server" ) == 0 )
+	else if ( strcmp( argv[ 1 ], "server" ) == 0 )
 	{
 		printf( "server start\n" );
 		server_listen();
@@ -91,41 +90,50 @@ int main( int argc, char* argv[] )
 	{
 		printf( "client start\n" );
 
-		SDL_Window* window = nullptr;
-		SDL_Surface* screenSurface = nullptr;
-		
-		if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
-		{
-			printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
-		}
-		else
-		{
-			window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
-			if( !window )
-			{
-				printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
-			}
-			else
-			{
-				screenSurface = SDL_GetWindowSurface( window );
-				SDL_FillRect( screenSurface, nullptr, SDL_MapRGB( screenSurface->format, 0xFF, 0xFF, 0xFF ) );
-				SDL_UpdateWindowSurface( window );
-			}
-		}
-
 		int sock = client_connect();
 		char msg[] = "this is a test\n";
 		send( sock, msg, strlen(msg)+1, 0 );
-
-		SDL_Delay( 2000 );
-
-		SDL_DestroyWindow( window );
-		SDL_Quit();
 	}
 	else
 	{
 		printf( "invalid parameter\n" );
+		return -1;
 	}
+
+	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
+	{
+		printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
+	}
+
+	SDL_Window* window = nullptr;
+	SDL_Surface* screenSurface = nullptr;
+	window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
+	if( !window )
+	{
+		printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
+		return -1;
+	}
+	SDL_SetWindowTitle( window, argv[ 1 ] );
+	screenSurface = SDL_GetWindowSurface( window );
+
+	bool run = true;
+	while ( run )
+	{
+		SDL_Event e;
+		while( SDL_PollEvent( &e ) != 0 )
+        {
+            if( e.type == SDL_QUIT )
+            {
+                run = false;
+            }
+        }
+
+		SDL_FillRect( screenSurface, nullptr, SDL_MapRGB( screenSurface->format, 0xFF, 0xFF, 0xFF ) );
+		SDL_UpdateWindowSurface( window );
+	}
+	
+	SDL_DestroyWindow( window );
+	SDL_Quit();
 
 	return 0;
 }
