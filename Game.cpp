@@ -22,3 +22,8 @@ void GameClient::Update( float dt )
 {
 
 }
+
+void GameClient::SetInput( SDL_Keycode key, bool down )
+{
+	
+}

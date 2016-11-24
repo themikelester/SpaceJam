@@ -135,9 +135,21 @@ int main( int argc, char* argv[] )
 	while ( run )
 	{
 		SDL_Event e;
-		while( SDL_PollEvent( &e ) != 0 )
+		while ( SDL_PollEvent( &e ) != 0 )
 		{
-			if( e.type == SDL_QUIT )
+			if ( client )
+			{
+				if ( e.type == SDL_KEYDOWN )
+				{
+					client->SetInput( e.key.keysym.sym, true );
+				}
+				else if ( e.type == SDL_KEYUP )
+				{
+					client->SetInput( e.key.keysym.sym, false );
+				}
+			}
+
+			if ( e.type == SDL_QUIT )
 			{
 				run = false;
 			}

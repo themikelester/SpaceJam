@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include "Math.h"
+#include <SDL.h>
 
 typedef uint32_t ShipId;
 
@@ -58,6 +59,8 @@ class GameClient
 public:
 	void Initialize( GameState* gameState );
 	void Update( float dt );
+
+	void SetInput( SDL_Keycode key, bool down );
 
 private:
 	GameState* m_gameState;
