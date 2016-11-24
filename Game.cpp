@@ -83,6 +83,11 @@ void GameServer::Update( float dt )
 		if( asteroid->position.y < -heightUnits ) { asteroid->position.y += heightUnits * 2; }
 		if( asteroid->position.y > heightUnits ) { asteroid->position.y -= heightUnits * 2; }
 	}
+
+	if ( m_socket != -1 )
+	{
+		send( m_socket, m_gameState, sizeof(*m_gameState), 0 );
+	}
 }
 
 ShipId GameServer::AddShip()
@@ -191,7 +196,20 @@ void GameClient::Update( float dt )
 		send( m_socket, &m_input, sizeof(m_input), 0 );
 	}
 
-	m_gameState->asteroids[ 0 ].rotation -= dt;
+	while ( true )
+	{
+		GameState temp;
+		int bytes = recv( m_socket, &temp, sizeof(temp), MSG_PEEK );
+		if ( bytes == sizeof(temp) )
+		{
+			recv( m_socket, m_gameState, sizeof(*m_gameState), 0 );
+			vec2 p = m_gameState->ships[ 0 ].position;
+		}
+		else
+		{
+			break;
+		}
+	}
 }
 
 void GameClient::SetInput( SDL_Keycode key, bool down )
