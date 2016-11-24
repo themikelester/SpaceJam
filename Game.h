@@ -42,7 +42,7 @@ struct Input
 class GameServer
 {
 public:
-	void Initialize( GameState* gameState );
+	void Initialize( int sock, GameState* gameState );
 	void Update( float dt );
 
 	ShipId AddShip();
@@ -50,6 +50,8 @@ public:
 	void SetInput( ShipId id, Input input );
 
 private:
+	int m_socket;
+
 	ShipId m_currentShipId;
 	Input m_inputs[ kGameMaxShips ];
 
@@ -59,12 +61,13 @@ private:
 class GameClient
 {
 public:
-	void Initialize( GameState* gameState );
+	void Initialize( int sock, GameState* gameState );
 	void Update( float dt );
 
 	void SetInput( SDL_Keycode key, bool down );
 
 private:
+	int m_socket;
 	Input m_input;
 	GameState* m_gameState;
 };
