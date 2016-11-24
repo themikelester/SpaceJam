@@ -276,10 +276,19 @@ int main( int argc, char* argv[] )
 
 		server = new GameServer();
 		server->Initialize( &gameState );
-
-		server_listen();
+		
+		bool offlineMode = false;
+		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
+		
+		if( !offlineMode )
+		{
+			server_listen();
+		}
 
 		server->AddShip();
+		server->AddAsteroid();
+		server->AddAsteroid();
+		server->AddAsteroid();
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
