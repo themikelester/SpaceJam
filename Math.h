@@ -1,3 +1,6 @@
+#ifndef MATH_H
+#define MATH_H
+
 #include <cmath>
 
 struct vec2
@@ -54,12 +57,14 @@ struct vec2
 	float y;
 };
 
-float dot( const vec2& a, const vec2& b )
+inline float dot( const vec2& a, const vec2& b )
 {
 	return a.x * b.x + a.y * b.y;
 }
 
-float length( const vec2& v )
+inline float length( const vec2& v )
 {
 	return sqrtf( v.x * v.x + v.y * v.y );
 }
+
+#endif

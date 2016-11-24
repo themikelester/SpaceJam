@@ -10,6 +10,8 @@
 
 #include <SDL.h>
 
+#include "Game.h"
+
 #define HACK_PORT "7777"
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -76,6 +78,12 @@ int server_listen()
 
 int main( int argc, char* argv[] )
 {
+	GameClient* client = nullptr;
+	GameServer* server = nullptr;
+
+	GameState gameState;
+	memset( &gameState, 0, sizeof(gameState) );
+
 	if ( argc < 2 )
 	{
 		printf( "specify server/client\n" );
@@ -84,11 +92,18 @@ int main( int argc, char* argv[] )
 	else if ( strcmp( argv[ 1 ], "server" ) == 0 )
 	{
 		printf( "server start\n" );
+
+		server = new GameServer();
+		server->Initialize( &gameState );
+
 		server_listen();
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
 		printf( "client start\n" );
+
+		client = new GameClient();
+		client->Initialize( &gameState );
 
 		int sock = client_connect();
 		char msg[] = "this is a test\n";
@@ -121,12 +136,26 @@ int main( int argc, char* argv[] )
 	{
 		SDL_Event e;
 		while( SDL_PollEvent( &e ) != 0 )
-        {
-            if( e.type == SDL_QUIT )
-            {
-                run = false;
-            }
-        }
+		{
+			if( e.type == SDL_QUIT )
+			{
+				run = false;
+			}
+		}
+
+		float dt = 0.016666f;
+
+		if ( server )
+		{
+			server->Update( dt );
+		}
+
+		if ( client )
+		{
+			client->Update( dt );
+		}
+
+		// Draw game state
 
 		SDL_FillRect( screenSurface, nullptr, SDL_MapRGB( screenSurface->format, 0xFF, 0xFF, 0xFF ) );
 		SDL_UpdateWindowSurface( window );
