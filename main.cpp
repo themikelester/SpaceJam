@@ -179,7 +179,41 @@ bool RenderInit( SDL_Window* window )
 	glBindBuffer( GL_ARRAY_BUFFER, shipVB );
 	glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0 );
 	
+	static const GLfloat verts[] = {
+		// Ship
+		0.0f, 1.0f, 1.0f,
+		-0.3f, 0.0f, 1.0f,
+		-0.3f, 0.0f, 1.0f,
+		0.0f,  0.2f, 1.0f,
+		0.0f,  0.2f, 1.0f,
+		0.3f,  0.0f, 1.0f,
+		0.3f,  0.0f, 1.0f,
+		0.0f, 1.0f, 1.0f,
+		
+		// Asteroid 0
+		-0.5f, -0.5f, 1.0f,
+		-0.5f,  0.5f, 1.0f,
+		-0.5f,  0.5f, 1.0f,
+		0.5f,  0.5f, 1.0f,
+		0.5f,  0.5f, 1.0f,
+		0.5f, -0.5f, 1.0f,
+		0.5f, -0.5f, 1.0f,
+		-0.5f, -0.5f, 1.0f,
+	};
+	
+	glBufferData( GL_ARRAY_BUFFER, sizeof( verts ), verts, GL_STATIC_DRAW );
+	
 	return true;
+}
+
+void ToMatrix( const vec2& scale, float rotationRad, const vec2& translation, float outMatrix[3][3] )
+{
+	float cosA = cosf( rotationRad );
+	float sinA = sinf( rotationRad );
+	
+	outMatrix[0][0] = cosA * scale.x; outMatrix[1][0] = sinA * scale.x; outMatrix[2][0] = translation.x * scale.x;
+	outMatrix[0][1] = -sinA * scale.y; outMatrix[1][1] = cosA * scale.y; outMatrix[2][1] = translation.y * scale.y;
+	outMatrix[0][2] = 0.0f; outMatrix[1][2] = 0.0f; outMatrix[2][2] = 1.0f;
 }
 
 void Render( const GameState& gameState, SDL_Window* window )
@@ -187,39 +221,41 @@ void Render( const GameState& gameState, SDL_Window* window )
 	glClearColor( 0.0, 0.0, 0.0, 1.0 );
 	glClear( GL_COLOR_BUFFER_BIT );
 	
-	static const GLfloat shipVerts[] = {
-		0.0f, 1.0f, 1.0f,
-		-0.3f, 0.0f, 1.0f,
-		-0.3f, 0.0f, 1.0f,
-		0.0f,  0.2f, 1.0f,
-		0.0f,  0.2f, 1.0f,
-		0.3f,  0.0f, 1.0f,
-		0.3f,  0.0f, 1.0f,
-		0.0f, 1.0f, 1.0f,
-	};
-	
-	glBufferData( GL_ARRAY_BUFFER, sizeof( shipVerts ), shipVerts, GL_STREAM_DRAW );
-	
-	float scale = 50.0f;
-	float angle = gameState.ships[ 0 ].rotation;
-	vec2 trans = gameState.ships[ 0 ].position;
-	
 	int width, height;
 	SDL_GetWindowSize( window, &width, &height );
-	float scaleX = scale / width;
-	float scaleY = scale / height;
-	float cosA = cosf( angle );
-	float sinA = sinf( angle );
 	
-	float modelMat[ 3 ][ 3 ] = {};
-	modelMat[0][0] = cosA * scaleX; modelMat[1][0] = sinA * scaleX; modelMat[2][0] = trans.x * scaleX;
-	modelMat[0][1] = -sinA * scaleY; modelMat[1][1] = cosA * scaleY; modelMat[2][1] = trans.y * scaleY;
-	modelMat[0][2] = 0.0f; modelMat[1][2] = 0.0f; modelMat[2][2] = 1.0f;
+	const float kGameScale = 50; // Length of 1 unit in pixels(ish)
 	
-	glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+	// Draw the ship
+	for( uint32_t i = 0; i < kGameMaxShips; i++ )
+	{
+		const Ship& ship = gameState.ships[ i ];
+		if( !ship.alive ) { continue; }
+		
+		vec2 scaleWH( kGameScale / width, kGameScale / height );
+		
+		float modelMat[ 3 ][ 3 ];
+		ToMatrix( scaleWH, ship.rotation, ship.position, modelMat );
+		
+		glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+		glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
+	}
 	
-	// Draw the triangle !
-	glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
+	// Draw asteriods
+	for( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
+	{
+		const Asteroid& asteroid = gameState.asteroids[ i ];
+		if( !asteroid.alive ) { continue; }
+		
+		float scale = kGameScale * asteroid.size;
+		vec2 scaleWH( scale / width, scale / height );
+		
+		float modelMat[ 3 ][ 3 ];
+		ToMatrix( scaleWH, asteroid.rotation, asteroid.position, modelMat );
+		
+		glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+		glDrawArrays( GL_LINES, 8, 8 );
+	}
 }
 
 //-----------
