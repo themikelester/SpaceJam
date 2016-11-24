@@ -146,9 +146,10 @@ void GameServer::AddAsteroid()
 		memset( asteroid, 0, sizeof(*asteroid) );
 		asteroid->alive = true;
 		
-		asteroid->position = vec2(0,0);
+		asteroid->position.x = 0.5 * kGameWidth / kGameScale * ((rand() / (float)RAND_MAX) * 2.0 - 1.0);
+		asteroid->position.y = 0.5 * kGameWidth / kGameScale * ((rand() / (float)RAND_MAX) * 2.0 - 1.0);
 		
-		asteroid->rotation = M_2_PI * (rand() / (float)RAND_MAX);
+		asteroid->rotation = 2.0 * M_PI * (rand() / (float)RAND_MAX);
 		
 		const float kAsteroidSizeMin = 0.5;
 		const float kAsteroidSizeRange = 3.0;
