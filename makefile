@@ -4,7 +4,7 @@ CPP_FILES := $(wildcard *.cpp)
 OBJ_FILES := $(CPP_FILES:.cpp=.o)
 
 CC_FLAGS := -I/Library/Frameworks/SDL2.framework/Headers -std=c++0x
-LD_FLAGS := -F/Library/Frameworks -framework SDL2 -std=c++0x
+LD_FLAGS := -F/Library/Frameworks -framework SDL2 -framework OpenGL -std=c++0x 
 
 all: $(TARGET)
 
