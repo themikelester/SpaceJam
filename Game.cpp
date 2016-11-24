@@ -15,6 +15,9 @@ void GameServer::Initialize( int sock, GameState* gameState )
 
 void GameServer::Update( float dt )
 {
+	float widthUnits = kGameWidth / kGameScale;
+	float heightUnits = kGameHeight / kGameScale;
+	
 	if ( m_socket != -1 )
 	{
 		while ( true )
@@ -62,6 +65,11 @@ void GameServer::Update( float dt )
 
 		ship->position += ship->velocity * dt;
 		ship->rotation += ship->rotationVelocity * dt;
+		
+		if( ship->position.x < -widthUnits ) { ship->position.x += widthUnits * 2; }
+		if( ship->position.x > widthUnits ) { ship->position.x -= widthUnits * 2; }
+		if( ship->position.y < -heightUnits ) { ship->position.y += heightUnits * 2; }
+		if( ship->position.y > heightUnits ) { ship->position.y -= heightUnits * 2; }
 	}
 	
 	for ( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
@@ -76,8 +84,6 @@ void GameServer::Update( float dt )
 		asteroid->rotation += dt;
 		asteroid->position += asteroid->velocity * dt;
 		
-		float widthUnits = kGameWidth / kGameScale;
-		float heightUnits = kGameHeight / kGameScale;
 		if( asteroid->position.x < -widthUnits ) { asteroid->position.x += widthUnits * 2; }
 		if( asteroid->position.x > widthUnits ) { asteroid->position.x -= widthUnits * 2; }
 		if( asteroid->position.y < -heightUnits ) { asteroid->position.y += heightUnits * 2; }
@@ -151,9 +157,10 @@ void GameServer::AddAsteroid()
 		memset( asteroid, 0, sizeof(*asteroid) );
 		asteroid->alive = true;
 		
-		asteroid->position = vec2(0,0);
+		asteroid->position.x = 0.5 * kGameWidth / kGameScale * ((rand() / (float)RAND_MAX) * 2.0 - 1.0);
+		asteroid->position.y = 0.5 * kGameWidth / kGameScale * ((rand() / (float)RAND_MAX) * 2.0 - 1.0);
 		
-		asteroid->rotation = M_2_PI * (rand() / (float)RAND_MAX);
+		asteroid->rotation = 2.0 * M_PI * (rand() / (float)RAND_MAX);
 		
 		const float kAsteroidSizeMin = 0.5;
 		const float kAsteroidSizeRange = 3.0;
