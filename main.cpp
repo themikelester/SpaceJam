@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cerrno>
 #include <cassert>
+#include <chrono>
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -16,6 +18,7 @@
 #include <OpenGL/gl3.h>
 #include "Game.h"
 
+const double kFrameTime = 1.0 / 60.0;
 #define HACK_PORT "7777"
 
 int client_connect()
@@ -347,7 +350,10 @@ int main( int argc, char* argv[] )
 	screenSurface = SDL_GetWindowSurface( window );
 	
 	RenderInit( window );
-	
+
+	std::chrono::steady_clock::time_point prevTime = std::chrono::steady_clock::now();
+	double sleepTime = 0.0;
+
 	bool run = true;
 	while ( run )
 	{
@@ -372,8 +378,11 @@ int main( int argc, char* argv[] )
 			}
 		}
 
-		float dt = 0.016666f;
-
+		std::chrono::steady_clock::time_point currentTime = std::chrono::steady_clock::now();
+		std::chrono::steady_clock::duration frameTime = currentTime - prevTime;
+		prevTime = currentTime;
+		double dt = std::chrono::duration_cast<std::chrono::nanoseconds>( frameTime ).count() / 1000000000.0;
+		
 		if ( server )
 		{
 			server->Update( dt );
@@ -388,6 +397,12 @@ int main( int argc, char* argv[] )
 		Render( gameState, window );
 		
 		SDL_GL_SwapWindow( window );
+
+		sleepTime += ( kFrameTime - dt );
+		if ( sleepTime > 0.0 )
+		{
+			usleep( sleepTime * 1000000.0 );
+		}
 	}
 	
 	SDL_DestroyWindow( window );
