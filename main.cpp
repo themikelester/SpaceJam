@@ -12,6 +12,7 @@
 #include <SDL.h>
 
 #include <OpenGL/gl3.h>
+#include "Game.h"
 
 #define HACK_PORT "7777"
 const int SCREEN_WIDTH = 640;
@@ -210,6 +211,12 @@ void Render()
 
 int main( int argc, char* argv[] )
 {
+	GameClient* client = nullptr;
+	GameServer* server = nullptr;
+
+	GameState gameState;
+	memset( &gameState, 0, sizeof(gameState) );
+
 	if ( argc < 2 )
 	{
 		printf( "specify server/client\n" );
@@ -218,15 +225,28 @@ int main( int argc, char* argv[] )
 	else if ( strcmp( argv[ 1 ], "server" ) == 0 )
 	{
 		printf( "server start\n" );
+
+		server = new GameServer();
+		server->Initialize( &gameState );
+
 		server_listen();
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
 		printf( "client start\n" );
-		
-		//		int sock = client_connect();
-		//		char msg[] = "this is a test\n";
-		//		send( sock, msg, strlen(msg)+1, 0 );
+
+		bool offlineMode = false;
+		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
+
+		client = new GameClient();
+		client->Initialize( &gameState );
+
+		if( !offlineMode )
+		{
+			int sock = client_connect();
+			char msg[] = "this is a test\n";
+			send( sock, msg, strlen(msg)+1, 0 );
+		}
 	}
 	else
 	{
@@ -263,7 +283,20 @@ int main( int argc, char* argv[] )
 				run = false;
 			}
 		}
-		
+
+		float dt = 0.016666f;
+
+		if ( server )
+		{
+			server->Update( dt );
+		}
+
+		if ( client )
+		{
+			client->Update( dt );
+		}
+
+		// Draw game state
 		Render();
 		
 		SDL_GL_SwapWindow( window );
