@@ -25,6 +25,7 @@ struct Asteroid
 	bool alive;
 	vec2 position;
 	float rotation;
+	vec2 velocity;
 	float size;
 };
 
@@ -47,6 +48,7 @@ public:
 	void Update( float dt );
 
 	ShipId AddShip();
+	void AddAsteroid();
 	void RemoveShip( ShipId id );
 	void SetInput( ShipId id, Input input );
 

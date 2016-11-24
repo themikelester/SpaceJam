@@ -279,12 +279,22 @@ int main( int argc, char* argv[] )
 	{
 		printf( "server start\n" );
 
-		int sock = server_listen();
+		bool offlineMode = false;
+		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
+		
+		int sock = -1;
+		if( !offlineMode )
+		{
+			sock = server_listen();
+		}
 
 		server = new GameServer();
 		server->Initialize( sock, &gameState );
-
+		
 		server->AddShip();
+		server->AddAsteroid();
+		server->AddAsteroid();
+		server->AddAsteroid();
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
