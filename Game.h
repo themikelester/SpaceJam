@@ -21,6 +21,7 @@ struct Asteroid
 {
 	bool alive;
 	vec2 position;
+	float rotation;
 	float size;
 };
 
