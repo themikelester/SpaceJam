@@ -15,10 +15,6 @@
 #include "Game.h"
 
 #define HACK_PORT "7777"
-const int SCREEN_WIDTH = 1280;
-const int SCREEN_HEIGHT = 480;
-
-const uint32_t kBoardSize = 12;
 
 int client_connect()
 {
@@ -90,9 +86,10 @@ bool CreateProgram( GLuint* program )
 	#version 330\n \
 	layout(location = 0) in vec3 position; \
 	uniform mat3 model; \
+	uniform vec2 invFrameSize; \
 	void main() \
 	{ \
-	vec2 pos = ( model * position ).xy; \
+	vec2 pos = invFrameSize * ( model * vec3( position.xy, 1.0 ) ).xy; \
 	gl_Position = vec4( pos, 0.0, 1.0 ); \
 	}";
 	
@@ -201,13 +198,13 @@ bool RenderInit( SDL_Window* window )
 	return true;
 }
 
-void ToMatrix( const vec2& scale, float rotationRad, const vec2& translation, float outMatrix[3][3] )
+void ToMatrix( float scale, float rotationRad, const vec2& translation, float outMatrix[3][3] )
 {
 	float cosA = cosf( rotationRad );
 	float sinA = sinf( rotationRad );
 	
-	outMatrix[0][0] = cosA * scale.x; outMatrix[1][0] = sinA * scale.x; outMatrix[2][0] = translation.x * scale.x;
-	outMatrix[0][1] = -sinA * scale.y; outMatrix[1][1] = cosA * scale.y; outMatrix[2][1] = translation.y * scale.y;
+	outMatrix[0][0] = cosA * scale; outMatrix[1][0] = sinA * scale; outMatrix[2][0] = translation.x;
+	outMatrix[0][1] = -sinA * scale; outMatrix[1][1] = cosA * scale; outMatrix[2][1] = translation.y;
 	outMatrix[0][2] = 0.0f; outMatrix[1][2] = 0.0f; outMatrix[2][2] = 1.0f;
 }
 
@@ -218,8 +215,9 @@ void Render( const GameState& gameState, SDL_Window* window )
 	
 	int width, height;
 	SDL_GetWindowSize( window, &width, &height );
+	vec2 invFrameSize( kGameScale/width, kGameScale/height );
 	
-	const float kGameScale = 50; // Length of 1 unit in pixels(ish)
+	glUniform2fv( 0, 1, &invFrameSize.x );
 	
 	// Draw the ship
 	for( uint32_t i = 0; i < kGameMaxShips; i++ )
@@ -227,12 +225,10 @@ void Render( const GameState& gameState, SDL_Window* window )
 		const Ship& ship = gameState.ships[ i ];
 		if( !ship.alive ) { continue; }
 		
-		vec2 scaleWH( kGameScale / width, kGameScale / height );
-		
 		float modelMat[ 3 ][ 3 ];
-		ToMatrix( scaleWH, ship.rotation, ship.position, modelMat );
+		ToMatrix( 1.0, ship.rotation, ship.position, modelMat );
 		
-		glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+		glUniformMatrix3fv( 1, 1, GL_FALSE, &modelMat[0][0] );
 		glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
 	}
 	
@@ -242,13 +238,10 @@ void Render( const GameState& gameState, SDL_Window* window )
 		const Asteroid& asteroid = gameState.asteroids[ i ];
 		if( !asteroid.alive ) { continue; }
 		
-		float scale = kGameScale * asteroid.size;
-		vec2 scaleWH( scale / width, scale / height );
-		
 		float modelMat[ 3 ][ 3 ];
-		ToMatrix( scaleWH, asteroid.rotation, asteroid.position, modelMat );
+		ToMatrix( asteroid.size, asteroid.rotation, asteroid.position, modelMat );
 		
-		glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+		glUniformMatrix3fv( 1, 1, GL_FALSE, &modelMat[0][0] );
 		glDrawArrays( GL_LINES, 8, 8 );
 	}
 }
@@ -320,7 +313,7 @@ int main( int argc, char* argv[] )
 	
 	SDL_Window* window = nullptr;
 	SDL_Surface* screenSurface = nullptr;
-	window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_OPENGL );
+	window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, kGameWidth, kGameHeight, SDL_WINDOW_OPENGL );
 	if( !window )
 	{
 		printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );

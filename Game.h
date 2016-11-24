@@ -9,6 +9,9 @@ typedef uint32_t ShipId;
 
 const uint32_t kGameMaxShips = 32;
 const uint32_t kGameMaxAsteroids = 64;
+const int kGameWidth = 640;
+const int kGameHeight = 480;
+const float kGameScale = 50.0f; // Length of 1 unit in pixels(ish)
 
 struct Ship
 {
