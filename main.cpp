@@ -88,9 +88,10 @@ bool CreateProgram( GLuint* program )
 	const char* vertexShaderString = "\
 	#version 330\n \
 	layout(location = 0) in vec4 position; \
+	uniform mat4 model; \
 	void main() \
 	{ \
-	gl_Position = position; \
+	gl_Position = model * position; \
 	}";
 	
 	const char* pixelShaderString = "\
@@ -191,6 +192,13 @@ void Render()
 	};
 	
 	glBufferData( GL_ARRAY_BUFFER, sizeof( shipVerts ), shipVerts, GL_STREAM_DRAW );
+	
+	float modelMat[ 4 ][ 4 ] = {};
+	modelMat[0][0] = 0.1f;
+	modelMat[1][1] = 0.1f;
+	modelMat[2][2] = 0.1f;
+	modelMat[3][3] = 1.0f;
+	glUniformMatrix4fv( 0, 1, GL_FALSE, &modelMat[0][0] );
 	
 	// Draw the triangle !
 	glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
