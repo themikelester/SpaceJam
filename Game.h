@@ -15,7 +15,9 @@ struct Ship
 	ShipId id;
 	bool alive;
 	vec2 position;
+	vec2 velocity;
 	float rotation;
+	float rotationVelocity;
 };
 
 struct Asteroid
@@ -43,13 +45,13 @@ public:
 	void Initialize( GameState* gameState );
 	void Update( float dt );
 
-	void AddShip();
-	void RemoveShip( ShipId ship );
-	void SetInput( ShipId ship, Input input );
+	ShipId AddShip();
+	void RemoveShip( ShipId id );
+	void SetInput( ShipId id, Input input );
 
 private:
 	ShipId m_currentShipId;
-	Input m_input[ kGameMaxShips ];
+	Input m_inputs[ kGameMaxShips ];
 
 	GameState* m_gameState;
 };
@@ -63,6 +65,7 @@ public:
 	void SetInput( SDL_Keycode key, bool down );
 
 private:
+	Input m_input;
 	GameState* m_gameState;
 };
 

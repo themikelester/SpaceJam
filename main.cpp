@@ -230,6 +230,8 @@ int main( int argc, char* argv[] )
 		server->Initialize( &gameState );
 
 		server_listen();
+
+		server->AddShip();
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
