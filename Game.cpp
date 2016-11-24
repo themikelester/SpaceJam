@@ -73,8 +73,15 @@ void GameServer::Update( float dt )
 			continue;
 		}
 		
-		asteroid->position += asteroid->velocity * dt;
 		asteroid->rotation += dt;
+		asteroid->position += asteroid->velocity * dt;
+		
+		float widthUnits = kGameWidth / kGameScale;
+		float heightUnits = kGameHeight / kGameScale;
+		if( asteroid->position.x < -widthUnits ) { asteroid->position.x += widthUnits * 2; }
+		if( asteroid->position.x > widthUnits ) { asteroid->position.x -= widthUnits * 2; }
+		if( asteroid->position.y < -heightUnits ) { asteroid->position.y += heightUnits * 2; }
+		if( asteroid->position.y > heightUnits ) { asteroid->position.y -= heightUnits * 2; }
 	}
 
 	if ( m_socket != -1 )
