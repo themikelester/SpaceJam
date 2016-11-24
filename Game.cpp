@@ -1,15 +1,38 @@
 #include "Game.h"
 #include <cstring>
+#include <sys/socket.h>
 
-void GameServer::Initialize( GameState* gameState )
+const float kShipAcceleration = 10.0f;
+const float kShipRotateSpeed = 4.0f;
+
+void GameServer::Initialize( int sock, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
 	m_gameState = gameState;
+	m_socket = sock;
 	m_currentShipId = 1;
 }
 
 void GameServer::Update( float dt )
 {
+	if ( m_socket != -1 )
+	{
+		while ( true )
+		{
+			Input input;
+			int bytes = recv( m_socket, &input, sizeof(input), MSG_PEEK );
+			if ( bytes == sizeof(Input) )
+			{
+				recv( m_socket, &input, sizeof(input), 0 );
+				m_inputs[ 0 ] = input;
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		Ship* ship = &m_gameState->ships[ i ];
@@ -20,18 +43,18 @@ void GameServer::Update( float dt )
 			continue;
 		}
 
-		vec2 accel( cosf(ship->rotation), sinf(ship->rotation) );
+		vec2 accel( sinf(ship->rotation), cosf(ship->rotation) );
 		accel *= input->accel;
 
-		ship->velocity += accel * dt;
-		ship->velocity *= 0.95f;
+		ship->velocity += accel * kShipAcceleration * dt;
+		ship->velocity *= 0.99f;
 		if ( length( ship->velocity ) < 0.001f )
 		{
 			ship->velocity = vec2( 0.0f, 0.0f );
 		}
 
-		ship->rotationVelocity += input->turn * dt;
-		ship->rotationVelocity *= 0.95f;
+		ship->rotationVelocity += kShipRotateSpeed * input->turn * dt;
+		ship->rotationVelocity *= 0.98f;
 		if ( fabs( ship->rotationVelocity ) < 0.001f )
 		{
 			ship->rotationVelocity = 0.0f;
@@ -150,14 +173,24 @@ void GameServer::SetInput( ShipId id, Input input )
 	}
 }
 
-void GameClient::Initialize( GameState* gameState )
+void GameClient::Initialize( int sock, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
-	m_gameState = gameState;	
+	m_gameState = gameState;
+	m_socket = sock;
+
+	m_gameState->asteroids[ 0 ].alive = true;
+	m_gameState->asteroids[ 0 ].size = 1.0;
 }
 
 void GameClient::Update( float dt )
 {
+	if ( m_socket != -1 )
+	{
+		send( m_socket, &m_input, sizeof(m_input), 0 );
+	}
+
+	m_gameState->asteroids[ 0 ].rotation -= dt;
 }
 
 void GameClient::SetInput( SDL_Keycode key, bool down )
@@ -172,10 +205,10 @@ void GameClient::SetInput( SDL_Keycode key, bool down )
 	}
 	if ( key == SDLK_LEFT )
 	{
-		m_input.turn = ( down ? 1 : 0 );
+		m_input.turn = ( down ? -1 : 0 );
 	}
 	if ( key == SDLK_RIGHT )
 	{
-		m_input.turn = ( down ? -1 : 0 );
+		m_input.turn = ( down ? 1 : 0 );
 	}
 }

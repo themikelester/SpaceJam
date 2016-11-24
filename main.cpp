@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <fcntl.h>
 
 #include <SDL.h>
 
@@ -43,6 +44,8 @@ int client_connect()
 
 	freeaddrinfo( res );
 
+	fcntl( sock, F_SETFL, O_NONBLOCK );
+
 	printf( "end connect\n" );
 
 	return sock;
@@ -68,6 +71,8 @@ int server_listen()
 	sockaddr_storage remoteAddr;
 	socklen_t addrSize = sizeof(remoteAddr);
 	int sock = accept( listener, (sockaddr*)&remoteAddr, &addrSize );
+
+	fcntl( sock, F_SETFL, O_NONBLOCK );
 
 	printf( "client connect!\n" );
 
@@ -267,17 +272,18 @@ int main( int argc, char* argv[] )
 	{
 		printf( "server start\n" );
 
-		server = new GameServer();
-		server->Initialize( &gameState );
-		
 		bool offlineMode = false;
 		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
 		
+		int sock = -1;
 		if( !offlineMode )
 		{
-			server_listen();
+			sock = server_listen();
 		}
 
+		server = new GameServer();
+		server->Initialize( sock, &gameState );
+		
 		server->AddShip();
 		server->AddAsteroid();
 		server->AddAsteroid();
@@ -290,15 +296,14 @@ int main( int argc, char* argv[] )
 		bool offlineMode = false;
 		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
 
-		client = new GameClient();
-		client->Initialize( &gameState );
-
+		int sock = -1;
 		if( !offlineMode )
 		{
-			int sock = client_connect();
-			char msg[] = "this is a test\n";
-			send( sock, msg, strlen(msg)+1, 0 );
+			sock = client_connect();
 		}
+
+		client = new GameClient();
+		client->Initialize( sock, &gameState );
 	}
 	else
 	{
