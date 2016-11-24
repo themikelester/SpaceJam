@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <netinet/tcp.h>
 
 #include <SDL.h>
 
@@ -50,6 +51,15 @@ int client_connect()
 
 	fcntl( sock, F_SETFL, O_NONBLOCK );
 
+	int enable = 1;
+	result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable) );
+	if ( result != 0 )
+	{
+		printf( "Could not set sockopt: %s\n", strerror( errno ) );
+		exit( -1 );
+		return -1;
+	}
+
 	printf( "end connect\n" );
 
 	return sock;
@@ -77,6 +87,15 @@ int server_listen()
 	int sock = accept( listener, (sockaddr*)&remoteAddr, &addrSize );
 
 	fcntl( sock, F_SETFL, O_NONBLOCK );
+
+	int enable = 1;
+	int result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable) );
+	if ( result != 0 )
+	{
+		printf( "Could not set sockopt: %s\n", strerror( errno ) );
+		exit( -1 );
+		return -1;
+	}
 
 	printf( "client connect!\n" );
 
