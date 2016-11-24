@@ -15,7 +15,7 @@
 #include "Game.h"
 
 #define HACK_PORT "7777"
-const int SCREEN_WIDTH = 640;
+const int SCREEN_WIDTH = 1280;
 const int SCREEN_HEIGHT = 480;
 
 const uint32_t kBoardSize = 12;
@@ -88,11 +88,12 @@ bool CreateProgram( GLuint* program )
 	
 	const char* vertexShaderString = "\
 	#version 330\n \
-	layout(location = 0) in vec4 position; \
-	uniform mat4 model; \
+	layout(location = 0) in vec3 position; \
+	uniform mat3 model; \
 	void main() \
 	{ \
-	gl_Position = model * position; \
+	vec2 pos = ( model * position ).xy; \
+	gl_Position = vec4( pos, 0.0, 1.0 ); \
 	}";
 	
 	const char* pixelShaderString = "\
@@ -176,30 +177,41 @@ bool RenderInit( SDL_Window* window )
 	return true;
 }
 
-void Render()
+void Render( const GameState& gameState, SDL_Window* window )
 {
 	glClearColor( 0.0, 0.0, 0.0, 1.0 );
 	glClear( GL_COLOR_BUFFER_BIT );
 	
 	static const GLfloat shipVerts[] = {
-		0.0f, 1.0f, 0.0f,
-		-0.3f, 0.0f, 0.0f,
-		-0.3f, 0.0f, 0.0f,
-		0.0f,  0.2f, 0.0f,
-		0.0f,  0.2f, 0.0f,
-		0.3f,  0.0f, 0.0f,
-		0.3f,  0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 1.0f,
+		-0.3f, 0.0f, 1.0f,
+		-0.3f, 0.0f, 1.0f,
+		0.0f,  0.2f, 1.0f,
+		0.0f,  0.2f, 1.0f,
+		0.3f,  0.0f, 1.0f,
+		0.3f,  0.0f, 1.0f,
+		0.0f, 1.0f, 1.0f,
 	};
 	
 	glBufferData( GL_ARRAY_BUFFER, sizeof( shipVerts ), shipVerts, GL_STREAM_DRAW );
 	
-	float modelMat[ 4 ][ 4 ] = {};
-	modelMat[0][0] = 0.1f;
-	modelMat[1][1] = 0.1f;
-	modelMat[2][2] = 0.1f;
-	modelMat[3][3] = 1.0f;
-	glUniformMatrix4fv( 0, 1, GL_FALSE, &modelMat[0][0] );
+	float scale = 50.0f;
+	float angle = gameState.ships[ 0 ].rotation;
+	vec2 trans = gameState.ships[ 0 ].position;
+	
+	int width, height;
+	SDL_GetWindowSize( window, &width, &height );
+	float scaleX = scale / width;
+	float scaleY = scale / height;
+	float cosA = cosf( angle );
+	float sinA = sinf( angle );
+	
+	float modelMat[ 3 ][ 3 ] = {};
+	modelMat[0][0] = cosA * scaleX; modelMat[1][0] = sinA * scaleX; modelMat[2][0] = trans.x * scaleX;
+	modelMat[0][1] = -sinA * scaleY; modelMat[1][1] = cosA * scaleY; modelMat[2][1] = trans.y * scaleY;
+	modelMat[0][2] = 0.0f; modelMat[1][2] = 0.0f; modelMat[2][2] = 1.0f;
+	
+	glUniformMatrix3fv( 0, 1, GL_FALSE, &modelMat[0][0] );
 	
 	// Draw the triangle !
 	glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
@@ -297,7 +309,7 @@ int main( int argc, char* argv[] )
 		}
 
 		// Draw game state
-		Render();
+		Render( gameState, window );
 		
 		SDL_GL_SwapWindow( window );
 	}
