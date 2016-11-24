@@ -81,20 +81,6 @@ int server_listen()
 // Render
 //-----------
 
-#define Error printf
-#define ASSERT assert
-
-void Render2()
-{
-	glClearColor(1.0, 0.0, 0.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-//	glBindBuffer(GL_ARRAY_BUFFER, g_vboPos);
-//	glBufferData(GL_ARRAY_BUFFER, sizeof(g_nodes), g_nodes, GL_STREAM_DRAW);
-//	
-//	glDrawArrays(GL_POINTS, 0, g_numNodes);
-}
-
 bool CreateProgram( GLuint* program )
 {
 	assert(program != nullptr);
@@ -104,7 +90,7 @@ bool CreateProgram( GLuint* program )
 	layout(location = 0) in vec4 position; \
 	void main() \
 	{ \
-	gl_Position = position * vec4(2.0f) - vec4(1.0f); \
+	gl_Position = position; \
 	}";
 	
 	const char* pixelShaderString = "\
@@ -112,7 +98,7 @@ bool CreateProgram( GLuint* program )
 	out vec4 outputColor; \
 	void main() \
 	{ \
-	outputColor = 1.0f; \
+	outputColor = vec4( 1.0f ); \
 	} ";
 	
 	GLint success;
@@ -127,7 +113,7 @@ bool CreateProgram( GLuint* program )
 	if (!success)
 	{
 		glGetShaderInfoLog(vs, sizeof(errorsBuf), 0, errorsBuf);
-		Error("Vertex Shader Errors:\n%s", errorsBuf);
+		printf("Vertex Shader Errors:\n%s", errorsBuf);
 		return false;
 	}
 	
@@ -137,7 +123,7 @@ bool CreateProgram( GLuint* program )
 	if (!success)
 	{
 		glGetShaderInfoLog(ps, sizeof(errorsBuf), 0, errorsBuf);
-		Error("Pixel Shader Errors:\n%s", errorsBuf);
+		printf("Pixel Shader Errors:\n%s", errorsBuf);
 		return false;
 	}
 	
@@ -148,7 +134,7 @@ bool CreateProgram( GLuint* program )
 	if (!success)
 	{
 		glGetProgramInfoLog(prgm, sizeof(errorsBuf), 0, errorsBuf);
-		Error("Program Link Errors:\n%s", errorsBuf);
+		printf("Program Link Errors:\n%s", errorsBuf);
 		return false;
 	}
 	
@@ -160,43 +146,49 @@ bool CreateProgram( GLuint* program )
 bool RenderInit( SDL_Window* window )
 {
 	SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
+	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 2 );
 	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-	SDL_GLContext SDL_GL_CreateContext( window );
+	SDL_GL_CreateContext( window );
 	
 	// Enable VSync
-	SDL_GL_SetSwapInterval(1);
+	SDL_GL_SetSwapInterval( 1 );
 	
-	GLuint program;
-	if( !CreateProgram(&program) ) { return false; }
-	glUseProgram(program);
+	GLuint program = -1;
+	CreateProgram( &program );
+	assert( program != -1 );
+	glUseProgram( program );
 	
-	// Initialize buffers
-//	uint positionSlot = 0;
-//	GLsizei stride = sizeof(g_nodes[0]);
-//	GLsizei totalSize = sizeof(g_nodes);
-//	uint offset = (char*)&g_nodes[0].position - (char*)&g_nodes[0];
-//	glGenBuffers(1, &g_vboPos);
-//	glBindBuffer(GL_ARRAY_BUFFER, g_vboPos);
-//	glBufferData(GL_ARRAY_BUFFER, totalSize, g_nodes, GL_STREAM_DRAW);
-//	glEnableVertexAttribArray(positionSlot);
-//	glVertexAttribPointer(positionSlot, 2, GL_UNSIGNED_SHORT, GL_TRUE, stride, (GLvoid*)offset);
-
+	GLuint vao;
+	glGenVertexArrays( 1, &vao );
+	glBindVertexArray( vao );
+	
+	GLuint shipVB;
+	glGenBuffers( 1, &shipVB );
+	glBindBuffer( GL_ARRAY_BUFFER, shipVB );
+	
+	glEnableVertexAttribArray( 0 );
+	glBindBuffer( GL_ARRAY_BUFFER, shipVB );
+	glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0 );
+	
 	return true;
 }
 
 void Render()
 {
-	GLuint VertexArrayID;
-	glGenVertexArrays(1, &VertexArrayID);
-	glBindVertexArray(VertexArrayID);
+	glClearColor( 0.0, 0.0, 0.0, 1.0 );
+	glClear( GL_COLOR_BUFFER_BIT );
 	
-	static const GLfloat g_vertex_buffer_data[] = {
-		-1.0f, -1.0f, 0.0f,
-		1.0f, -1.0f, 0.0f,
-		0.0f,  1.0f, 0.0f,
+	static const GLfloat shipVerts[] = {
+		-0.5f, -0.5f, 0.0f,
+		0.5f, -0.5f, 0.0f,
+		0.0f,  0.5f, 0.0f,
 	};
+	
+	glBufferData( GL_ARRAY_BUFFER, sizeof( shipVerts ), shipVerts, GL_STREAM_DRAW );
+	
+	// Draw the triangle !
+	glDrawArrays( GL_TRIANGLES, 0, 3 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
 }
 
 //-----------
@@ -259,7 +251,8 @@ int main( int argc, char* argv[] )
 			}
 		}
 		
-		Render2();
+		Render();
+		
 		SDL_GL_SwapWindow( window );
 	}
 	
