@@ -15,6 +15,8 @@ const float kGameScale = 50.0f; // Length of 1 unit in pixels(ish)
 
 struct Ship
 {
+	void Update( double dt, float accel, float turn );
+
 	ShipId id;
 	bool alive;
 	vec2 position;
@@ -56,7 +58,8 @@ public:
 	void SetInput( ShipId id, Input input );
 
 private:
-	int m_socket;
+	int m_listener;
+	int m_client;
 
 	ShipId m_currentShipId;
 	Input m_inputs[ kGameMaxShips ];

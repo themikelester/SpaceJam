@@ -2,128 +2,18 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
-#include <cerrno>
 #include <cassert>
 #include <chrono>
 #include <unistd.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <netinet/tcp.h>
-
 #include <SDL.h>
-
 #include <OpenGL/gl3.h>
+
 #include "Game.h"
+#include "Socket.h"
 
 const double kFrameTime = 1.0 / 60.0;
-#define HACK_PORT "7777"
-
-int client_connect()
-{
-	addrinfo hints;
-	memset( &hints, 0, sizeof(hints) );
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	addrinfo* res;
-	getaddrinfo( "localhost", HACK_PORT, &hints, &res );
-
-	int sock = socket( res->ai_family, res->ai_socktype, res->ai_protocol );
-	if ( sock == -1 )
-	{
-		printf( "Error opening socket\n" );
-		exit( -1 );
-		return -1;
-	}
-	int result = connect( sock, res->ai_addr, res->ai_addrlen );
-	if ( result != 0 )
-	{
-		printf( "Error connecting to server: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	freeaddrinfo( res );
-
-	fcntl( sock, F_SETFL, O_NONBLOCK );
-
-	int enable = 1;
-	result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable) );
-	if ( result != 0 )
-	{
-		printf( "Could not set sockopt: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	printf( "end connect\n" );
-
-	return sock;
-}
-
-int server_listen()
-{
-	int optVal = 1;
-	socklen_t optLen = sizeof(optVal);
-	int result;
-
-	addrinfo hints;
-	memset( &hints, 0, sizeof(hints) );
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-
-	addrinfo* res;
-	getaddrinfo( nullptr, HACK_PORT, &hints, &res );
-
-	int listener = socket( res->ai_family, res->ai_socktype, res->ai_protocol );
-	if ( listener < 0 )
-	{
-		printf( "Could not open listener: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	result = setsockopt( listener, SOL_SOCKET, SO_REUSEPORT, &optVal, optLen );
-	if ( result != 0 )
-	{
-		printf( "Could not set SO_REUSEPORT: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	bind( listener, res->ai_addr, res->ai_addrlen );
-	listen( listener, 16 );
-
-	freeaddrinfo( res );
-
-	sockaddr_storage remoteAddr;
-	socklen_t addrSize = sizeof(remoteAddr);
-	int sock = accept( listener, (sockaddr*)&remoteAddr, &addrSize );
-	if ( sock < 0 )
-	{
-		printf( "Could not open socket: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	fcntl( sock, F_SETFL, O_NONBLOCK );
-
-	result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &optVal, optLen );
-	if ( result != 0 )
-	{
-		printf( "Could not set TCP_NODELAY: %s\n", strerror( errno ) );
-		exit( -1 );
-		return -1;
-	}
-
-	printf( "client connect!\n" );
-
-	return sock;
-}
+#define HACK_PORT 7777
 
 //-----------
 // Render
@@ -321,19 +211,14 @@ int main( int argc, char* argv[] )
 		bool offlineMode = false;
 		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
 		
-		int sock = -1;
+		int listener = -1;
 		if( !offlineMode )
 		{
-			sock = server_listen();
+			listener = server_create_listener( HACK_PORT );
 		}
 
 		server = new GameServer();
-		server->Initialize( sock, &gameState );
-		
-		server->AddShip();
-		server->AddAsteroid();
-		server->AddAsteroid();
-		server->AddAsteroid();
+		server->Initialize( listener, &gameState );
 	}
 	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
 	{
@@ -345,7 +230,7 @@ int main( int argc, char* argv[] )
 		int sock = -1;
 		if( !offlineMode )
 		{
-			sock = client_connect();
+			sock = client_connect( HACK_PORT );
 		}
 
 		client = new GameClient();

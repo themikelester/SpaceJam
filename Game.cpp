@@ -1,39 +1,94 @@
 #include "Game.h"
 #include <cstring>
+#include "Socket.h"
+
 #include <sys/socket.h>
+#include <unistd.h>
+#include <cerrno>
+
+float kWidthUnits = kGameWidth / kGameScale;
+float kHeightUnits = kGameHeight / kGameScale;
 
 const float kShipAcceleration = 10.0f;
 const float kShipRotateSpeed = 4.0f;
 
-void GameServer::Initialize( int sock, GameState* gameState )
+void Ship::Update( double dt, float accel, float turn )
+{
+	if ( !alive )
+	{
+		return;
+	}
+
+	vec2 dir( sinf(rotation), cosf(rotation) );
+
+	velocity += dir * accel * kShipAcceleration * dt;
+	velocity *= 0.99f;
+	if ( length( velocity ) < 0.001f )
+	{
+		velocity = vec2( 0.0f, 0.0f );
+	}
+
+	rotationVelocity += kShipRotateSpeed * turn * dt;
+	rotationVelocity *= 0.98f;
+	if ( fabs( rotationVelocity ) < 0.001f )
+	{
+		rotationVelocity = 0.0f;
+	}
+
+	position += velocity * dt;
+	rotation += rotationVelocity * dt;
+	
+	if( position.x < -kWidthUnits ) { position.x += kWidthUnits * 2; }
+	if( position.x > kWidthUnits ) { position.x -= kWidthUnits * 2; }
+	if( position.y < -kHeightUnits ) { position.y += kHeightUnits * 2; }
+	if( position.y > kHeightUnits ) { position.y -= kHeightUnits * 2; }
+}
+
+void GameServer::Initialize( int listener, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
 	m_gameState = gameState;
-	m_socket = sock;
+	m_listener = listener;
+	m_client = -1;
 	m_currentShipId = 1;
+
+	AddAsteroid();
+	AddAsteroid();
+	AddAsteroid();
 }
 
 void GameServer::Update( float dt )
 {
-	float widthUnits = kGameWidth / kGameScale;
-	float heightUnits = kGameHeight / kGameScale;
-	
-	if ( m_socket != -1 )
+	if ( m_client == -1 )
 	{
-		while ( true )
+		m_client = server_accept( m_listener );
+		if ( m_client >= 0 )
 		{
-			Input input;
-			int bytes = recv( m_socket, &input, sizeof(input), MSG_PEEK );
-			if ( bytes == sizeof(Input) )
-			{
-				recv( m_socket, &input, sizeof(input), 0 );
-				m_inputs[ 0 ] = input;
-			}
-			else
-			{
-				break;
-			}
+			printf( "client connect!\n" );
+			AddShip();
 		}
+	}
+	
+	while ( m_client != -1 )
+	{
+		Input* input = &m_inputs[ 0 ];
+		int recvd = socket_recv( m_client, input, sizeof(*input) );
+		if ( recvd == -1 )
+		{
+			printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
+			printf( "m_client %d\n", m_client );
+			m_client = -1;
+		}
+		else if ( recvd == 0 )
+		{
+			break;
+		}
+	}
+
+	// HACK
+	if ( m_client == -1 && m_gameState->ships[ 0 ].alive )
+	{
+		RemoveShip( m_gameState->ships[ 0 ].id );
 	}
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
@@ -41,35 +96,7 @@ void GameServer::Update( float dt )
 		Ship* ship = &m_gameState->ships[ i ];
 		Input* input = &m_inputs[ i ];
 
-		if ( !ship->alive )
-		{
-			continue;
-		}
-
-		vec2 accel( sinf(ship->rotation), cosf(ship->rotation) );
-		accel *= input->accel;
-
-		ship->velocity += accel * kShipAcceleration * dt;
-		ship->velocity *= 0.99f;
-		if ( length( ship->velocity ) < 0.001f )
-		{
-			ship->velocity = vec2( 0.0f, 0.0f );
-		}
-
-		ship->rotationVelocity += kShipRotateSpeed * input->turn * dt;
-		ship->rotationVelocity *= 0.98f;
-		if ( fabs( ship->rotationVelocity ) < 0.001f )
-		{
-			ship->rotationVelocity = 0.0f;
-		}
-
-		ship->position += ship->velocity * dt;
-		ship->rotation += ship->rotationVelocity * dt;
-		
-		if( ship->position.x < -widthUnits ) { ship->position.x += widthUnits * 2; }
-		if( ship->position.x > widthUnits ) { ship->position.x -= widthUnits * 2; }
-		if( ship->position.y < -heightUnits ) { ship->position.y += heightUnits * 2; }
-		if( ship->position.y > heightUnits ) { ship->position.y -= heightUnits * 2; }
+		ship->Update( dt, input->accel, input->turn );
 	}
 	
 	for ( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
@@ -84,15 +111,21 @@ void GameServer::Update( float dt )
 		asteroid->rotation += dt;
 		asteroid->position += asteroid->velocity * dt;
 		
-		if( asteroid->position.x < -widthUnits ) { asteroid->position.x += widthUnits * 2; }
-		if( asteroid->position.x > widthUnits ) { asteroid->position.x -= widthUnits * 2; }
-		if( asteroid->position.y < -heightUnits ) { asteroid->position.y += heightUnits * 2; }
-		if( asteroid->position.y > heightUnits ) { asteroid->position.y -= heightUnits * 2; }
+		if( asteroid->position.x < -kWidthUnits ) { asteroid->position.x += kWidthUnits * 2; }
+		if( asteroid->position.x > kWidthUnits ) { asteroid->position.x -= kWidthUnits * 2; }
+		if( asteroid->position.y < -kHeightUnits ) { asteroid->position.y += kHeightUnits * 2; }
+		if( asteroid->position.y > kHeightUnits ) { asteroid->position.y -= kHeightUnits * 2; }
 	}
 
-	if ( m_socket != -1 )
+	if ( m_client != -1 )
 	{
-		send( m_socket, m_gameState, sizeof(*m_gameState), 0 );
+		int bytes = send( m_client, m_gameState, sizeof(*m_gameState), 0 );
+		if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+		{
+			printf( "Error sending, closing socket: %s\n", strerror( errno ) );
+			close( m_client );
+			m_client = -1;
+		}
 	}
 }
 
@@ -202,19 +235,23 @@ void GameClient::Update( float dt )
 		send( m_socket, &m_input, sizeof(m_input), 0 );
 	}
 
-	while ( true )
+	while ( m_socket != -1 )
 	{
-		GameState temp;
-		int bytes = recv( m_socket, &temp, sizeof(temp), MSG_PEEK );
-		if ( bytes == sizeof(temp) )
+		int recvd = socket_recv( m_socket, m_gameState, sizeof(*m_gameState) );
+		if ( recvd == -1 )
 		{
-			recv( m_socket, m_gameState, sizeof(*m_gameState), 0 );
-			vec2 p = m_gameState->ships[ 0 ].position;
+			printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
+			m_socket = -1;
 		}
-		else
+		else if ( recvd == 0 )
 		{
 			break;
 		}
+	}
+
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
+	{
+		m_gameState->ships[ i ].Update( dt, 0.0f, 0.0f );
 	}
 }
 
