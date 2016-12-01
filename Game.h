@@ -59,9 +59,10 @@ public:
 
 private:
 	int m_listener;
-	int m_client;
 
 	ShipId m_currentShipId;
+
+	int m_clientSockets[ kGameMaxShips ];
 	Input m_inputs[ kGameMaxShips ];
 
 	GameState* m_gameState;

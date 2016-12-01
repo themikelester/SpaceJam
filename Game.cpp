@@ -48,9 +48,13 @@ void GameServer::Initialize( int listener, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
 	m_gameState = gameState;
-	m_listener = listener;
-	m_client = -1;
 	m_currentShipId = 1;
+	
+	m_listener = listener;
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
+	{
+		m_clientSockets[ i ] = -1;
+	}
 
 	AddAsteroid();
 	AddAsteroid();
@@ -59,44 +63,57 @@ void GameServer::Initialize( int listener, GameState* gameState )
 
 void GameServer::Update( float dt )
 {
-	if ( m_client == -1 )
+	int* client = nullptr;
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		m_client = server_accept( m_listener );
-		if ( m_client >= 0 )
+		if ( m_clientSockets[ i ] == -1 )
 		{
-			printf( "client connect!\n" );
-			AddShip();
-		}
-	}
-	
-	while ( m_client != -1 )
-	{
-		Input* input = &m_inputs[ 0 ];
-		int recvd = socket_recv( m_client, input, sizeof(*input) );
-		if ( recvd == -1 )
-		{
-			printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
-			printf( "m_client %d\n", m_client );
-			m_client = -1;
-		}
-		else if ( recvd == 0 )
-		{
+			client = &m_clientSockets[ i ];
 			break;
 		}
 	}
 
-	// HACK
-	if ( m_client == -1 && m_gameState->ships[ 0 ].alive )
+	if ( client )
 	{
-		RemoveShip( m_gameState->ships[ 0 ].id );
+		*client = server_accept( m_listener );
+		if ( *client >= 0 )
+		{
+			printf( "Client connected, adding ship!\n" );
+			AddShip();
+		}
+	}
+	
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
+	{
+		while ( m_clientSockets[ i ] != -1 )
+		{
+			Input* input = &m_inputs[ i ];
+			int recvd = socket_recv( m_clientSockets[ i ], input, sizeof(*input) );
+			if ( recvd == -1 )
+			{
+				printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
+				m_clientSockets[ i ] = -1;
+			}
+			else if ( recvd == 0 )
+			{
+				break;
+			}
+		}
+	}
+
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
+	{
+		if ( m_clientSockets[ i ] == -1 && m_gameState->ships[ i ].alive )
+		{
+			printf( "Removing ship\n" );
+			RemoveShip( m_gameState->ships[ i ].id );
+		}
 	}
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		Ship* ship = &m_gameState->ships[ i ];
-		Input* input = &m_inputs[ i ];
-
-		ship->Update( dt, input->accel, input->turn );
+		ship->Update( dt, m_inputs[ i ].accel, m_inputs[ i ].turn );
 	}
 	
 	for ( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
@@ -117,14 +134,17 @@ void GameServer::Update( float dt )
 		if( asteroid->position.y > kHeightUnits ) { asteroid->position.y -= kHeightUnits * 2; }
 	}
 
-	if ( m_client != -1 )
+	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		int bytes = send( m_client, m_gameState, sizeof(*m_gameState), 0 );
-		if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+		if ( m_clientSockets[ i ] != -1 )
 		{
-			printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-			close( m_client );
-			m_client = -1;
+			int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
+			if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+			{
+				printf( "Error sending, closing socket: %s\n", strerror( errno ) );
+				close( m_clientSockets[ i ] );
+				m_clientSockets[ i ] = -1;
+			}
 		}
 	}
 }
@@ -168,6 +188,7 @@ void GameServer::RemoveShip( ShipId id )
 			Input* input = &m_inputs[ i ];
 			memset( ship, 0, sizeof(*ship) );
 			memset( input, 0, sizeof(*input) );
+			m_clientSockets[ i ] = -1;
 			return;
 		}
 	}
