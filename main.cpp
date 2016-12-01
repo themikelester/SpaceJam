@@ -66,6 +66,10 @@ int client_connect()
 
 int server_listen()
 {
+	int optVal = 1;
+	socklen_t optLen = sizeof(optVal);
+	int result;
+
 	addrinfo hints;
 	memset( &hints, 0, sizeof(hints) );
 	hints.ai_family = AF_UNSPEC;
@@ -76,6 +80,21 @@ int server_listen()
 	getaddrinfo( nullptr, HACK_PORT, &hints, &res );
 
 	int listener = socket( res->ai_family, res->ai_socktype, res->ai_protocol );
+	if ( listener < 0 )
+	{
+		printf( "Could not open listener: %s\n", strerror( errno ) );
+		exit( -1 );
+		return -1;
+	}
+
+	result = setsockopt( listener, SOL_SOCKET, SO_REUSEPORT, &optVal, optLen );
+	if ( result != 0 )
+	{
+		printf( "Could not set SO_REUSEPORT: %s\n", strerror( errno ) );
+		exit( -1 );
+		return -1;
+	}
+
 	bind( listener, res->ai_addr, res->ai_addrlen );
 	listen( listener, 16 );
 
@@ -84,14 +103,19 @@ int server_listen()
 	sockaddr_storage remoteAddr;
 	socklen_t addrSize = sizeof(remoteAddr);
 	int sock = accept( listener, (sockaddr*)&remoteAddr, &addrSize );
+	if ( sock < 0 )
+	{
+		printf( "Could not open socket: %s\n", strerror( errno ) );
+		exit( -1 );
+		return -1;
+	}
 
 	fcntl( sock, F_SETFL, O_NONBLOCK );
 
-	int enable = 1;
-	int result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &enable, sizeof(enable) );
+	result = setsockopt( sock, SOL_SOCKET, TCP_NODELAY, &optVal, optLen );
 	if ( result != 0 )
 	{
-		printf( "Could not set sockopt: %s\n", strerror( errno ) );
+		printf( "Could not set TCP_NODELAY: %s\n", strerror( errno ) );
 		exit( -1 );
 		return -1;
 	}
