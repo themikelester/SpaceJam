@@ -15,6 +15,8 @@
 const double kFrameTime = 1.0 / 60.0;
 #define HACK_PORT 7777
 
+GLint g_colorLocation = -1;
+
 //-----------
 // Render
 //-----------
@@ -37,9 +39,10 @@ bool CreateProgram( GLuint* program )
 	const char* pixelShaderString = "\
 	#version 330\n \
 	out vec4 outputColor; \
+	uniform vec3 color; \
 	void main() \
 	{ \
-	outputColor = vec4( 1.0f ); \
+	outputColor = vec4( color, 1.0f ); \
 	} ";
 	
 	GLint success;
@@ -78,6 +81,8 @@ bool CreateProgram( GLuint* program )
 		printf("Program Link Errors:\n%s", errorsBuf);
 		return false;
 	}
+
+	g_colorLocation = glGetUniformLocation(	prgm, "color" );
 	
 	*program = prgm;
 	
@@ -166,14 +171,27 @@ void Render( const GameState& gameState, SDL_Window* window )
 		const Ship& ship = gameState.ships[ i ];
 		if( !ship.alive ) { continue; }
 		
+		if ( ship.local )
+		{
+			float color[ 3 ] = { 0.0f, 1.0f, 0.0f };
+			glUniform3fv( g_colorLocation, 1, color );
+		}
+		else
+		{
+			float color[ 3 ] = { 1.0f, 1.0f, 1.0f };
+			glUniform3fv( g_colorLocation, 1, color );
+		}
+
 		float modelMat[ 3 ][ 3 ];
 		ToMatrix( 1.0, ship.rotation, ship.position, modelMat );
 		
 		glUniformMatrix3fv( 1, 1, GL_FALSE, &modelMat[0][0] );
 		glDrawArrays( GL_LINES, 0, 8 ); // Starting from vertex 0; 3 vertices total -> 1 triangle
 	}
-	
+
 	// Draw asteriods
+	float asteroidColor[ 3 ] = { 1.0f, 1.0f, 1.0f };
+	glUniform3fv( g_colorLocation, 1, asteroidColor );
 	for( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
 	{
 		const Asteroid& asteroid = gameState.asteroids[ i ];
@@ -181,6 +199,21 @@ void Render( const GameState& gameState, SDL_Window* window )
 		
 		float modelMat[ 3 ][ 3 ];
 		ToMatrix( asteroid.size, asteroid.rotation, asteroid.position, modelMat );
+		
+		glUniformMatrix3fv( 1, 1, GL_FALSE, &modelMat[0][0] );
+		glDrawArrays( GL_LINES, 8, 8 );
+	}
+
+	// Draw lasers
+	float laserColor[ 3 ] = { 1.0f, 1.0f, 1.0f };
+	glUniform3fv( g_colorLocation, 1, laserColor );
+	for( uint32_t i = 0; i < kGameMaxLasers; i++ )
+	{
+		const Laser& laser = gameState.lasers[ i ];
+		if( !laser.alive ) { continue; }
+		
+		float modelMat[ 3 ][ 3 ];
+		ToMatrix( 0.5f, 0.5f, laser.position, modelMat );
 		
 		glUniformMatrix3fv( 1, 1, GL_FALSE, &modelMat[0][0] );
 		glDrawArrays( GL_LINES, 8, 8 );

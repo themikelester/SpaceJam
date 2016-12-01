@@ -13,6 +13,10 @@ const double kServerSyncInterval = 0.1;
 const float kShipAcceleration = 10.0f;
 const float kShipRotateSpeed = 4.0f;
 
+const float kShipFireInterval = 0.3f;
+const float kLaserSpeed = 15.0f;
+const float kLaserLifeTime = 3.0f;
+
 void Ship::Update( double dt, float accel, float turn )
 {
 	if ( !alive )
@@ -45,6 +49,29 @@ void Ship::Update( double dt, float accel, float turn )
 	if( position.y > kHeightUnits ) { position.y -= kHeightUnits * 2; }
 }
 
+void Laser::Update( double dt )
+{
+	if ( !alive )
+	{
+		return;
+	}
+
+	life -= dt;
+	if ( life <= 0.0 )
+	{
+		alive = false;
+		return;
+	}
+	
+	vec2 direction( sinf(rotation), cosf(rotation) ); 
+	position += direction * kLaserSpeed * dt;
+	
+	if( position.x < -kWidthUnits ) { alive = false; }
+	if( position.x > kWidthUnits ) { alive = false; }
+	if( position.y < -kHeightUnits ) { alive = false; }
+	if( position.y > kHeightUnits ) { alive = false; }
+}
+
 void GameServer::Initialize( int listener, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
@@ -54,7 +81,7 @@ void GameServer::Initialize( int listener, GameState* gameState )
 	m_listener = listener;
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		m_clientSockets[ i ] = -1;
+		m_players[ i ].socket = -1;
 	}
 
 	m_sendTimer = 0.0;
@@ -68,20 +95,31 @@ void GameServer::Update( float dt )
 {
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		if ( m_clientSockets[ i ] == -1 )
+		if ( m_players[ i ].socket == -1 )
 		{
-			m_clientSockets[ i ] = server_accept( m_listener );
-			if ( m_clientSockets[ i ] >= 0 )
+			int sock = server_accept( m_listener );
+			if ( sock >= 0 )
 			{
 				printf( "Client connected, adding ship!\n" );
-				AddShip();
 
-				int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
+				Player* player = &m_players[ i ];
+				Ship* ship = &m_gameState->ships[ i ];
+				
+				memset( player, 0, sizeof(*player) );
+				memset( ship, 0, sizeof(*ship) );
+
+				player->socket = sock;
+				ship->id = m_currentShipId;
+				ship->alive = true;
+				
+				m_currentShipId++;
+
+				int bytes = send( m_players[ i ].socket, m_gameState, sizeof(*m_gameState), 0 );
 				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
 				{
 					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-					close( m_clientSockets[ i ] );
-					m_clientSockets[ i ] = -1;
+					close( m_players[ i ].socket );
+					m_players[ i ].socket = -1;
 				}
 			}
 		}
@@ -89,14 +127,14 @@ void GameServer::Update( float dt )
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		while ( m_clientSockets[ i ] != -1 )
+		while ( m_players[ i ].socket != -1 )
 		{
-			Input* input = &m_inputs[ i ];
-			int recvd = socket_recv( m_clientSockets[ i ], input, sizeof(*input) );
+			Input* input = &m_players[ i ].input;
+			int recvd = socket_recv( m_players[ i ].socket, input, sizeof(*input) );
 			if ( recvd == -1 )
 			{
 				printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
-				m_clientSockets[ i ] = -1;
+				m_players[ i ].socket = -1;
 			}
 			else if ( recvd == 0 )
 			{
@@ -107,17 +145,35 @@ void GameServer::Update( float dt )
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		if ( m_clientSockets[ i ] == -1 && m_gameState->ships[ i ].alive )
+		if ( m_players[ i ].socket == -1 && m_gameState->ships[ i ].alive )
 		{
 			printf( "Removing ship\n" );
-			RemoveShip( m_gameState->ships[ i ].id );
+			
+			Player* player = &m_players[ i ];
+			Ship* ship = &m_gameState->ships[ i ];
+			
+			memset( player, 0, sizeof(*player) );
+			memset( ship, 0, sizeof(*ship) );
+
+			player->socket = -1;
 		}
 	}
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		Ship* ship = &m_gameState->ships[ i ];
-		ship->Update( dt, m_inputs[ i ].accel, m_inputs[ i ].turn );
+		ship->Update( dt, m_players[ i ].input.accel, m_players[ i ].input.turn );
+
+		Player* player = &m_players[ i ];
+		if ( player->input.fire )
+		{
+			player->fireTimer -= dt;
+			if ( player->fireTimer < 0.0f )
+			{
+				player->fireTimer += kShipFireInterval;
+				AddLaser( ship->position, ship->rotation );
+			}
+		}
 	}
 	
 	for ( uint32_t i = 0; i < kGameMaxAsteroids; i++ )
@@ -138,67 +194,31 @@ void GameServer::Update( float dt )
 		if( asteroid->position.y > kHeightUnits ) { asteroid->position.y -= kHeightUnits * 2; }
 	}
 
+	for ( uint32_t i = 0; i < kGameMaxLasers; i++ )
+	{
+		m_gameState->lasers[ i ].Update( dt );
+	}
+
 	m_sendTimer += dt;
 	if ( m_sendTimer > kServerSyncInterval )
 	{
 		m_sendTimer -= kServerSyncInterval;
 		for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 		{
-			if ( m_clientSockets[ i ] != -1 )
+			if ( m_players[ i ].socket != -1 )
 			{
-				int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
+				m_gameState->ships[ i ].local = true;
+
+				int bytes = send( m_players[ i ].socket, m_gameState, sizeof(*m_gameState), 0 );
 				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
 				{
 					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-					close( m_clientSockets[ i ] );
-					m_clientSockets[ i ] = -1;
+					close( m_players[ i ].socket );
+					m_players[ i ].socket = -1;
 				}
+
+				m_gameState->ships[ i ].local = false;
 			}
-		}
-	}
-}
-
-ShipId GameServer::AddShip()
-{
-	Ship* ship = nullptr;
-	Input* input = nullptr;
-	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
-	{
-		if ( m_gameState->ships[ i ].id == 0 )
-		{
-			ship = &m_gameState->ships[ i ];
-			input = &m_inputs[ i ];
-			break;
-		}
-	}
-
-	if ( ship )
-	{
-		memset( ship, 0, sizeof(*ship) );
-		memset( input, 0, sizeof(*input) );
-		ship->id = m_currentShipId;
-		ship->alive = true;
-		
-		m_currentShipId++;
-
-		return ship->id;
-	}
-
-	return 0;
-}
-
-void GameServer::RemoveShip( ShipId id )
-{
-	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
-	{
-		if ( m_gameState->ships[ i ].id == id )
-		{
-			Ship* ship = &m_gameState->ships[ i ];
-			Input* input = &m_inputs[ i ];
-			memset( ship, 0, sizeof(*ship) );
-			memset( input, 0, sizeof(*input) );
-			m_clientSockets[ i ] = -1;
-			return;
 		}
 	}
 }
@@ -236,13 +256,34 @@ void GameServer::AddAsteroid()
 	}
 }
 
+void GameServer::AddLaser( vec2 position, float rotation )
+{
+	Laser* laser = nullptr;
+	for ( uint32_t i = 0; i < kGameMaxLasers; i++ )
+	{
+		if ( !m_gameState->lasers[ i ].alive )
+		{
+			laser = &m_gameState->lasers[ i ];
+			break;
+		}
+	}
+
+	if ( laser )
+	{
+		laser->alive = true;
+		laser->position = position;
+		laser->rotation = rotation;
+		laser->life = kLaserLifeTime;
+	}
+}
+
 void GameServer::SetInput( ShipId id, Input input )
 {
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		if ( m_gameState->ships[ i ].id == id )
 		{
-			memcpy( &m_inputs[ i ], &input, sizeof(input) );
+			memcpy( &m_players[ i ].input, &input, sizeof(input) );
 			return;
 		}
 	}
@@ -288,7 +329,19 @@ void GameClient::Update( float dt )
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
-		m_gameState->ships[ i ].Update( dt, 0.0f, 0.0f );
+		float accel = 0.0f;
+		float turn = 0.0f;
+		if ( m_gameState->ships[ i ].local )
+		{
+			accel = m_input.accel;
+			turn = m_input.turn;
+		}
+		m_gameState->ships[ i ].Update( dt, accel, turn );
+	}
+
+	for ( uint32_t i = 0; i < kGameMaxLasers; i++ )
+	{
+		m_gameState->lasers[ i ].Update( dt );
 	}
 }
 
@@ -309,5 +362,9 @@ void GameClient::SetInput( SDL_Keycode key, bool down )
 	if ( key == SDLK_RIGHT )
 	{
 		m_input.turn = ( down ? 1 : 0 );
+	}
+	if ( key == SDLK_SPACE )
+	{
+		m_input.fire = ( down ? 1 : 0 );
 	}
 }
