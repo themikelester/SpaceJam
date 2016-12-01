@@ -15,10 +15,10 @@ $(TARGET): $(OBJ_FILES)
 	clang++ $(LD_FLAGS) -o $(TARGET) $(OBJ_FILES)
 
 client: $(TARGET)
-	@./$(TARGET) "client"
+	@./$(TARGET)
 
 server: $(TARGET)
-	@./$(TARGET) "server"
+	@./$(TARGET) -s
 
 clean:
 	rm $(TARGET) $(OBJ_FILES)

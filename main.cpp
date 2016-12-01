@@ -199,67 +199,62 @@ int main( int argc, char* argv[] )
 	GameState gameState;
 	memset( &gameState, 0, sizeof(gameState) );
 
-	if ( argc < 2 )
+	bool serverMode = false;
+	bool headlessMode = true;
+	for ( uint32_t i = 1; i < argc; i++ )
 	{
-		printf( "specify server/client\n" );
-		return -1;
+		if ( strcmp( "-s", argv[ i ] ) == 0 )
+		{
+			serverMode = true;
+		}
+		else if ( strcmp( "-h", argv[ i ] ) == 0 )
+		{
+			headlessMode = false;
+		}
 	}
-	else if ( strcmp( argv[ 1 ], "server" ) == 0 )
+	
+	if ( serverMode )
 	{
 		printf( "server start\n" );
 
-		bool offlineMode = false;
-		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
-		
-		int listener = -1;
-		if( !offlineMode )
-		{
-			listener = server_create_listener( HACK_PORT );
-		}
-
+		int listener = server_create_listener( HACK_PORT );
 		server = new GameServer();
 		server->Initialize( listener, &gameState );
 	}
-	else if ( strcmp( argv[ 1 ], "client" ) == 0 )
+	else
 	{
 		printf( "client start\n" );
 
-		bool offlineMode = false;
-		if( argc > 2 ) { offlineMode = (strcmp( "-o", argv[ 2 ] ) == 0); }
-
-		int sock = -1;
-		if( !offlineMode )
-		{
-			sock = client_connect( HACK_PORT );
-		}
-
+		int sock = client_connect( HACK_PORT );
 		client = new GameClient();
 		client->Initialize( sock, &gameState );
-	}
-	else
-	{
-		printf( "invalid parameter\n" );
-		return -1;
-	}
-	
-	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
-	{
-		printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
+
+		headlessMode = false;
 	}
 	
 	SDL_Window* window = nullptr;
 	SDL_Surface* screenSurface = nullptr;
-	window = SDL_CreateWindow( "SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, kGameWidth, kGameHeight, SDL_WINDOW_OPENGL );
-	if( !window )
+	if ( !headlessMode )
 	{
-		printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
-		return -1;
-	}
-	SDL_SetWindowTitle( window, argv[ 1 ] );
-	screenSurface = SDL_GetWindowSurface( window );
-	
-	RenderInit( window );
+		if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
+		{
+			printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
+		}
 
+		window = SDL_CreateWindow( "Asteroids", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, kGameWidth, kGameHeight, SDL_WINDOW_OPENGL );
+		if( !window )
+		{
+			printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
+			return -1;
+		}
+
+		const char* name = serverMode ? "Asteroids Server" : "Asteroids";
+		SDL_SetWindowTitle( window, name );
+		screenSurface = SDL_GetWindowSurface( window );
+
+		RenderInit( window );
+	}
+	
 	std::chrono::steady_clock::time_point prevTime = std::chrono::steady_clock::now();
 	double sleepTime = 0.0;
 
@@ -303,9 +298,11 @@ int main( int argc, char* argv[] )
 		}
 
 		// Draw game state
-		Render( gameState, window );
-		
-		SDL_GL_SwapWindow( window );
+		if ( !headlessMode )
+		{
+			Render( gameState, window );
+			SDL_GL_SwapWindow( window );
+		}
 
 		sleepTime += ( kFrameTime - dt );
 		if ( sleepTime > 0.0 )
@@ -314,11 +311,11 @@ int main( int argc, char* argv[] )
 		}
 	}
 	
-	SDL_DestroyWindow( window );
-	SDL_Quit();
+	if ( !headlessMode )
+	{
+		SDL_DestroyWindow( window );
+		SDL_Quit();
+	}
 	
 	return 0;
 }
-
-
-
