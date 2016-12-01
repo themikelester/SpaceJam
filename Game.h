@@ -66,6 +66,8 @@ private:
 	Input m_inputs[ kGameMaxShips ];
 
 	GameState* m_gameState;
+
+	double m_sendTimer;
 };
 
 class GameClient
@@ -80,6 +82,7 @@ private:
 	int m_socket;
 	Input m_input;
 	GameState* m_gameState;
+	double m_sendTimer;
 };
 
 #endif

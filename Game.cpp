@@ -9,6 +9,7 @@
 float kWidthUnits = kGameWidth / kGameScale;
 float kHeightUnits = kGameHeight / kGameScale;
 
+const double kServerSyncInterval = 0.1;
 const float kShipAcceleration = 10.0f;
 const float kShipRotateSpeed = 4.0f;
 
@@ -56,6 +57,8 @@ void GameServer::Initialize( int listener, GameState* gameState )
 		m_clientSockets[ i ] = -1;
 	}
 
+	m_sendTimer = 0.0;
+
 	AddAsteroid();
 	AddAsteroid();
 	AddAsteroid();
@@ -63,26 +66,27 @@ void GameServer::Initialize( int listener, GameState* gameState )
 
 void GameServer::Update( float dt )
 {
-	int* client = nullptr;
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		if ( m_clientSockets[ i ] == -1 )
 		{
-			client = &m_clientSockets[ i ];
-			break;
+			m_clientSockets[ i ] = server_accept( m_listener );
+			if ( m_clientSockets[ i ] >= 0 )
+			{
+				printf( "Client connected, adding ship!\n" );
+				AddShip();
+
+				int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
+				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+				{
+					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
+					close( m_clientSockets[ i ] );
+					m_clientSockets[ i ] = -1;
+				}
+			}
 		}
 	}
 
-	if ( client )
-	{
-		*client = server_accept( m_listener );
-		if ( *client >= 0 )
-		{
-			printf( "Client connected, adding ship!\n" );
-			AddShip();
-		}
-	}
-	
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 	{
 		while ( m_clientSockets[ i ] != -1 )
@@ -134,16 +138,21 @@ void GameServer::Update( float dt )
 		if( asteroid->position.y > kHeightUnits ) { asteroid->position.y -= kHeightUnits * 2; }
 	}
 
-	for ( uint32_t i = 0; i < kGameMaxShips; i++ )
+	m_sendTimer += dt;
+	if ( m_sendTimer > kServerSyncInterval )
 	{
-		if ( m_clientSockets[ i ] != -1 )
+		m_sendTimer -= kServerSyncInterval;
+		for ( uint32_t i = 0; i < kGameMaxShips; i++ )
 		{
-			int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
-			if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+			if ( m_clientSockets[ i ] != -1 )
 			{
-				printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-				close( m_clientSockets[ i ] );
-				m_clientSockets[ i ] = -1;
+				int bytes = send( m_clientSockets[ i ], m_gameState, sizeof(*m_gameState), 0 );
+				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+				{
+					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
+					close( m_clientSockets[ i ] );
+					m_clientSockets[ i ] = -1;
+				}
 			}
 		}
 	}
@@ -247,13 +256,20 @@ void GameClient::Initialize( int sock, GameState* gameState )
 
 	m_gameState->asteroids[ 0 ].alive = true;
 	m_gameState->asteroids[ 0 ].size = 1.0;
+
+	m_sendTimer = 0.0;
 }
 
 void GameClient::Update( float dt )
 {
 	if ( m_socket != -1 )
 	{
-		send( m_socket, &m_input, sizeof(m_input), 0 );
+		m_sendTimer += dt;
+		if ( m_sendTimer > kServerSyncInterval )
+		{
+			send( m_socket, &m_input, sizeof(m_input), 0 );
+			m_sendTimer -= kServerSyncInterval;
+		}
 	}
 
 	while ( m_socket != -1 )
