@@ -250,7 +250,7 @@ int main( int argc, char* argv[] )
 	{
 		printf( "server start\n" );
 
-		int listener = server_create_listener( HACK_PORT );
+		int listener = socket_server_create_listener( HACK_PORT );
 		server = new GameServer();
 		server->Initialize( listener, &gameState );
 	}
@@ -258,7 +258,7 @@ int main( int argc, char* argv[] )
 	{
 		printf( "client start\n" );
 
-		int sock = client_connect( HACK_PORT );
+		int sock = socket_client_connect( HACK_PORT );
 		client = new GameClient();
 		client->Initialize( sock, &gameState );
 

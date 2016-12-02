@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <cerrno>
 
+#include "lz4.h"
+
 float kWidthUnits = kGameWidth / kGameScale;
 float kHeightUnits = kGameHeight / kGameScale;
 
@@ -99,7 +101,7 @@ void GameServer::Update( float dt )
 	{
 		if ( m_players[ i ].socket == -1 )
 		{
-			int sock = server_accept( m_listener );
+			int sock = socket_server_accept( m_listener );
 			if ( sock >= 0 )
 			{
 				printf( "Client connected, adding ship!\n" );
@@ -115,15 +117,6 @@ void GameServer::Update( float dt )
 				ship->alive = true;
 				
 				m_currentShipId++;
-
-				int bytes = send( m_players[ i ].socket, m_gameState, sizeof(*m_gameState), 0 );
-				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
-				{
-					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-					close( m_players[ i ].socket );
-					m_players[ i ].socket = -1;
-				}
-				memcpy( m_players[ i ].prev, m_gameState, sizeof(GameState) );
 			}
 		}
 	}
@@ -133,7 +126,7 @@ void GameServer::Update( float dt )
 		while ( m_players[ i ].socket != -1 )
 		{
 			Input* input = &m_players[ i ].input;
-			int recvd = socket_recv( m_players[ i ].socket, input, sizeof(*input) );
+			int recvd = socket_recv_msg( m_players[ i ].socket, input, sizeof(*input) );
 			if ( recvd == -1 )
 			{
 				printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
@@ -220,11 +213,12 @@ void GameServer::Update( float dt )
 				}
 				memcpy( m_players[ i ].prev, current, sizeof(GameState) );
 
-				int bytes = send( m_players[ i ].socket, diff, sizeof(GameState), 0 );
-				if ( bytes < sizeof(GameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+				uint8_t compressed[ sizeof(GameState) ];
+				int32_t result = LZ4_compress_default( (const char*)diff, (char*)compressed, sizeof(GameState), sizeof(compressed) );
+				int bytes = socket_send_msg( m_players[ i ].socket, compressed, result );
+				if ( bytes != result )
 				{
 					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
-					close( m_players[ i ].socket );
 					m_players[ i ].socket = -1;
 				}
 
@@ -320,15 +314,20 @@ void GameClient::Update( float dt )
 		m_sendTimer += dt;
 		if ( m_sendTimer > kServerSyncInterval )
 		{
-			send( m_socket, &m_input, sizeof(m_input), 0 );
+			int bytes = socket_send_msg( m_socket, &m_input, sizeof(m_input) );
+			if ( bytes < sizeof(m_input) )
+			{
+				printf( "Error sending, closing socket: %s\n", strerror( errno ) );
+				m_socket = -1;
+			}
 			m_sendTimer -= kServerSyncInterval;
 		}
 	}
 
 	while ( m_socket != -1 )
 	{
-		uint8_t diff[ sizeof(GameState) ];
-		int recvd = socket_recv( m_socket, diff, sizeof(diff) );
+		uint8_t compressed[ sizeof(GameState) ];
+		int recvd = socket_recv_msg( m_socket, compressed, sizeof(compressed) );
 		if ( recvd == -1 )
 		{
 			printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
@@ -337,6 +336,14 @@ void GameClient::Update( float dt )
 		else if ( recvd == 0 )
 		{
 			break;
+		}
+
+		uint8_t diff[ sizeof(GameState) ];
+		int result = LZ4_decompress_fast( (const char*)compressed, (char*)diff, sizeof(GameState) );
+		if ( result != recvd )
+		{
+			printf( "Error decompressing received state\n" );
+			m_socket = -1;
 		}
 
 		uint8_t* current = (uint8_t*)m_gameState;
