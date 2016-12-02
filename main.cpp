@@ -13,7 +13,7 @@
 #include "Socket.h"
 
 const double kFrameTime = 1.0 / 60.0;
-#define HACK_PORT 7777
+#define DEFAULT_PORT 7777
 
 GLint g_colorLocation = -1;
 
@@ -234,6 +234,8 @@ int main( int argc, char* argv[] )
 
 	bool serverMode = false;
 	bool headlessMode = true;
+	const char* hostname = "localhost";
+	uint16_t port = DEFAULT_PORT;
 	for ( uint32_t i = 1; i < argc; i++ )
 	{
 		if ( strcmp( "-s", argv[ i ] ) == 0 )
@@ -244,21 +246,44 @@ int main( int argc, char* argv[] )
 		{
 			headlessMode = false;
 		}
+		else if ( strcmp( "-a", argv[ i ] ) == 0 )
+		{
+			if ( i + 1 >= argc )
+			{
+				printf( "Specify a hostname\n" );
+				return -1;
+			}
+			hostname = argv[ i + 1 ];
+		}
+		else if ( strcmp( "-p", argv[ i ] ) == 0 )
+		{
+			if ( i + 1 >= argc )
+			{
+				printf( "Specify a port number\n" );
+				return -1;
+			}
+			port = atoi( argv[ i + 1 ] );
+			if ( port == 0 )
+			{
+				printf( "Invalid port specified\n" );
+				return -1;
+			}
+		}
 	}
 	
 	if ( serverMode )
 	{
-		printf( "server start\n" );
+		printf( "server start on port %hu\n", port );
 
-		int listener = socket_server_create_listener( HACK_PORT );
+		int listener = socket_server_create_listener( port );
 		server = new GameServer();
 		server->Initialize( listener, &gameState );
 	}
 	else
 	{
-		printf( "client start\n" );
+		printf( "client start on %s:%hu\n", hostname, port );
 
-		int sock = socket_client_connect( HACK_PORT );
+		int sock = socket_client_connect( hostname, port );
 		client = new GameClient();
 		client->Initialize( sock, &gameState );
 
@@ -307,6 +332,11 @@ int main( int argc, char* argv[] )
 				{
 					client->SetInput( e.key.keysym.sym, false );
 				}
+			}
+
+			if ( e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE )
+			{
+				run = false;
 			}
 
 			if ( e.type == SDL_QUIT )

@@ -1,6 +1,6 @@
 #include <cstdint>
 
-int socket_client_connect( uint16_t port );
+int socket_client_connect( const char* hostname, uint16_t port );
 int socket_server_create_listener( uint16_t port );
 int socket_server_accept( int listener );
 

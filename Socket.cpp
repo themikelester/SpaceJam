@@ -10,7 +10,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int socket_client_connect( uint16_t port )
+int socket_client_connect( const char* hostname, uint16_t port )
 {
 	int optVal = 1;
 	socklen_t optLen = sizeof(optVal);
@@ -25,7 +25,7 @@ int socket_client_connect( uint16_t port )
 	sprintf( portStr, "%hu", port );
 
 	addrinfo* res;
-	getaddrinfo( "localhost", portStr, &hints, &res );
+	getaddrinfo( hostname, portStr, &hints, &res );
 
 	int sock = socket( res->ai_family, res->ai_socktype, res->ai_protocol );
 	if ( sock == -1 )
