@@ -2,6 +2,7 @@
 #include <cstring>
 #include "Socket.h"
 
+#include <cassert>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
@@ -75,6 +76,7 @@ void Laser::Update( double dt )
 void GameServer::Initialize( int listener, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
+	memset( gameState, 0, sizeof(*gameState) );
 	m_gameState = gameState;
 	m_currentShipId = 1;
 	
@@ -121,6 +123,7 @@ void GameServer::Update( float dt )
 					close( m_players[ i ].socket );
 					m_players[ i ].socket = -1;
 				}
+				memcpy( m_players[ i ].prev, m_gameState, sizeof(GameState) );
 			}
 		}
 	}
@@ -209,8 +212,16 @@ void GameServer::Update( float dt )
 			{
 				m_gameState->ships[ i ].local = true;
 
-				int bytes = send( m_players[ i ].socket, m_gameState, sizeof(*m_gameState), 0 );
-				if ( bytes < sizeof(*m_gameState) && errno != EAGAIN && errno != EWOULDBLOCK )
+				uint8_t diff[ sizeof(GameState) ];
+				uint8_t* current = (uint8_t*)m_gameState;
+				for ( uint32_t b = 0; b < sizeof(GameState); b++ )
+				{
+					diff[ b ] = current[ b ] ^ m_players[ i ].prev[ b ];
+				}
+				memcpy( m_players[ i ].prev, current, sizeof(GameState) );
+
+				int bytes = send( m_players[ i ].socket, diff, sizeof(GameState), 0 );
+				if ( bytes < sizeof(GameState) && errno != EAGAIN && errno != EWOULDBLOCK )
 				{
 					printf( "Error sending, closing socket: %s\n", strerror( errno ) );
 					close( m_players[ i ].socket );
@@ -292,6 +303,7 @@ void GameServer::SetInput( ShipId id, Input input )
 void GameClient::Initialize( int sock, GameState* gameState )
 {
 	memset( this, 0, sizeof(*this) );
+	memset( gameState, 0, sizeof(*gameState) );
 	m_gameState = gameState;
 	m_socket = sock;
 
@@ -315,7 +327,8 @@ void GameClient::Update( float dt )
 
 	while ( m_socket != -1 )
 	{
-		int recvd = socket_recv( m_socket, m_gameState, sizeof(*m_gameState) );
+		uint8_t diff[ sizeof(GameState) ];
+		int recvd = socket_recv( m_socket, diff, sizeof(diff) );
 		if ( recvd == -1 )
 		{
 			printf( "Error receiving, closing socket: %s\n", strerror( errno ) );
@@ -325,6 +338,13 @@ void GameClient::Update( float dt )
 		{
 			break;
 		}
+
+		uint8_t* current = (uint8_t*)m_gameState;
+		for ( uint32_t b = 0; b < sizeof(GameState); b++ )
+		{
+			current[ b ] = diff[ b ] ^ m_prev[ b ];
+		}
+		memcpy( m_prev, current, sizeof(GameState) );
 	}
 
 	for ( uint32_t i = 0; i < kGameMaxShips; i++ )

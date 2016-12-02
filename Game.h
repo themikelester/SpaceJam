@@ -65,6 +65,7 @@ struct Player
 	int socket;
 	Input input;
 	double fireTimer;
+	uint8_t prev[ sizeof(GameState) ];
 };
 
 class GameServer
@@ -99,6 +100,7 @@ private:
 	Input m_input;
 	GameState* m_gameState;
 	double m_sendTimer;
+	uint8_t m_prev[ sizeof(GameState) ];
 };
 
 #endif
